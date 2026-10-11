@@ -21,6 +21,6 @@ dynamics and edge angle.
 - [x] Fixed-rate sampling loop
 - [x] SD card logging with RAM buffer
 - [x] IMU communicating, WHO_AM_I = 0x70
-- [ ] Reliable continuous readings
+- [X] Reliable continuous readings
 - [ ] Python analysis
 - [ ] Sensor fusion
