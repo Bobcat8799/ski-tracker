@@ -12,11 +12,6 @@ SparkFun_LSM6DSV16X myLSM;
 sfe_lsm_data_t accelData;
 sfe_lsm_data_t gyroData;
 
-// Sd card reader selector
-const int chipSelect = 5;
-
-File dataFile;
-
 unsigned long lastSample = 0;
 const unsigned long interval = 8333.33333333;
 
@@ -26,6 +21,9 @@ const unsigned long interval = 8333.33333333;
 
   float AngleRoll = 0;
   float AnglePitch = 0;
+
+  float cfr = 0;
+  float cft = 0;
 
   int LastUpdate = 0;
 
@@ -116,6 +114,13 @@ void setup() {
   Serial.println("Calibration Succesful");
 }
 
+void sendSet(int id, float roll, float pitch, float yaw) {
+    Serial.print(id);       Serial.print(',');
+    Serial.print(roll, 2);  Serial.print(',');
+    Serial.print(pitch, 2); Serial.print(',');
+    Serial.println(yaw, 2);
+}
+
 void loop() {
 
 
@@ -124,20 +129,22 @@ void loop() {
     if (myLSM.checkStatus()) {
       myLSM.getAccel(&accelData);
       myLSM.getGyro(&gyroData);
-      gx_a += ((gyroData.xData - xcal)/1000)*0.00833333333;
-      gy_a += ((gyroData.yData - ycal)/1000)*0.00833333333;
+      gx_a += ((-gyroData.xData - xcal)/1000)*0.00833333333;
+      gy_a += ((-gyroData.yData - ycal)/1000)*0.00833333333;
       gz_a += ((gyroData.zData - zcal)/1000)*0.00833333333;
 
       AngleRoll = (atan2(accelData.yData, accelData.zData))*180/M_PI;
       AnglePitch = (atan2(accelData.xData, sqrt(accelData.yData*accelData.yData+accelData.zData*accelData.zData)))*180/M_PI;
+
+      cfr = ((((((-gyroData.xData - xcal)/1000)*0.00833333333)+ cfr)*0.98) + (-AngleRoll*0.02));
+      cft = ((((((-gyroData.yData - ycal)/1000)*0.00833333333)+ cft)*0.98) + (AnglePitch*0.02));
+
       LastUpdate += 1;
     }
-  if (LastUpdate == 15) {
-    Serial.print(gx_a);
-    Serial.print(",");
-    Serial.print(gy_a);
-    Serial.print(",");
-    Serial.println(gz_a);
+  if (LastUpdate == 1) {
+    sendSet(0, gx_a, gy_a, gz_a + 45.00);
+    sendSet(1, -AngleRoll, AnglePitch, -0.00);
+    sendSet(2, cfr, cft, -45.00);
     LastUpdate = 0;
   }
   delay(1);
