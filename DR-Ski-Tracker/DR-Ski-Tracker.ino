@@ -150,4 +150,7 @@ void loop() {
   delay(1);
   }
 }
+
+angle = 0.98 * (angle + gyro * dt)
+      + 0.02 * accel_angle
   

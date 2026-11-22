@@ -17,7 +17,25 @@ const int chipSelect = 5;
 File dataFile;
 
 unsigned long lastSample = 0;
-const unsigned long interval = 10000;
+const unsigned long interval = 8333.33333333;
+
+  float gx_a = 0;
+  float gy_a = 0;
+  float gz_a = 0;
+
+  float AngleRoll = 0;
+  float AnglePitch = 0;
+
+  float cfr = 0;
+  float cft = 0;
+
+  int LastUpdate = 0;
+
+  float xcal = 0;
+  float ycal = 0;
+  float zcal = 0;
+
+  float sum = 0;
 
 const int BUF_SIZE = 4096;
 char buf[BUF_SIZE];
@@ -41,7 +59,7 @@ void setup() {
 
   lastSample = micros();
 
-  dataFile.println("t_us,ax_mg,ay_mg,az_mg,gx_mdps,gy_mdps,gz_mdps");
+  dataFile.println("t_us,roll,pitch,yaw");
 
   // IMU setup below from public sketch below
   Wire.begin();
@@ -95,7 +113,29 @@ void setup() {
   myLSM.enableGyroLP1Filter();
   myLSM.setGyroLP1Bandwidth(LSM6DSV16X_GY_ULTRA_LIGHT);
 
-  Serial.println("Ready.");
+  Serial.println("Setup Succesfull");
+  Serial.println("Starting Calibration Please don't move device");
+  
+  unsigned long calStart = micros();
+  lastSample = calStart;
+
+  while(micros() - calStart <3000000){
+    if (micros() - lastSample >= interval) {
+      lastSample += interval;
+      if (myLSM.checkStatus()) {
+        myLSM.getAccel(&accelData);
+        myLSM.getGyro(&gyroData);
+        xcal += gyroData.xData;
+        ycal += gyroData.yData;
+        zcal += gyroData.zData;
+        sum += 1;
+      }
+    }
+  }
+  xcal/=sum;
+  ycal/=sum;
+  zcal/=sum;
+  Serial.println("Calibration Succesful");
 }
 
 void loop() {
@@ -104,11 +144,19 @@ void loop() {
     if (myLSM.checkStatus()) {
       myLSM.getAccel(&accelData);
       myLSM.getGyro(&gyroData);
+      gx_a += ((-gyroData.xData - xcal)/1000)*0.00833333333;
+      gy_a += ((-gyroData.yData - ycal)/1000)*0.00833333333;
+      gz_a += ((gyroData.zData - zcal)/1000)*0.00833333333;
+
+      AngleRoll = (atan2(accelData.yData, accelData.zData))*180/M_PI;
+      AnglePitch = (atan2(accelData.xData, sqrt(accelData.yData*accelData.yData+accelData.zData*accelData.zData)))*180/M_PI;
+
+      cfr = ((((((-gyroData.xData - xcal)/1000)*0.00833333333)+ cfr)*0.98) + (-AngleRoll*0.02));
+      cft = ((((((-gyroData.yData - ycal)/1000)*0.00833333333)+ cft)*0.98) + (AnglePitch*0.02));
     }
     bufPos += snprintf(buf + bufPos, BUF_SIZE - bufPos,
                        "%lu,%.4f,%.4f,%.4f,%.3f,%.3f,%.3f\n",
-                       micros(), accelData.xData, accelData.yData, accelData.zData,
-                       gyroData.xData, gyroData.yData, gyroData.zData);
+                       micros(), AngleRoll, AnglePitch, gyroData.zData);
 
     if (bufPos > BUF_SIZE - 100) {
       dataFile.write((uint8_t*)buf, bufPos);
